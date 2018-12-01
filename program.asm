@@ -54,9 +54,11 @@ const_len_message_for_user equ $ - const_message_for_user
 
 const_asterisk db '*'
 
-ICANON db 2
-ECHO db 8
+ICANON equ 1<<1
+ECHO equ 1<<3
 ; ------------------------------------------------------------------------------
+
+
 
 
 
@@ -143,8 +145,6 @@ val_ptr_file_decryptedtext resb 4
 
 
 
-
-
 ; ------------------------------------------------------------------------------
 section .text
 
@@ -160,6 +160,7 @@ call _read_key
 
 ; чтение открытого тектса, его зашифрование и 
 ; запись зашифрованного текста в соответсвующий файл
+call _encrypt_text
 
 jmp _end
 
@@ -348,7 +349,7 @@ _encrypt_text:
     mov eax, 5
     mov ebx, const_filename_encryptedtext
     mov ecx, 101q
-    mov edx, 777q
+    mov edx, 700q
     int 80h
     test eax, eax
     js _error_open_file
@@ -377,7 +378,7 @@ _encrypt_text:
 
         ; если не было считано ни одного символа, значит достигли конца файла, и выходим из цикла
         cmp eax, 0
-        jmp _end_loop_read_plaintext_file
+        je _end_loop_read_plaintext_file
 
         ; используем команду loop и регистр ecx для организации цикла (подробнее стр. 5)
         ; eax будет также хранить ориинальное количество считанных символов
@@ -429,7 +430,10 @@ _encrypt_text:
             ; переместим рассматриваемый символ (байт) в bl
             
             xor ebx, ebx
-            mov bl, byte [val_buffer + eax - ecx]
+            xor edi, edi
+            mov di, ax
+            sub di, cx
+            mov bl, byte [val_buffer + edi]
             
             ; является ли текущий символ маленькой буквой
             ; 97 <= bx <= 122
@@ -437,7 +441,7 @@ _encrypt_text:
             jb _check_enc_next
             cmp bl, 122
             ja _check_enc_next
-            mov dl, byte [val_key + si]
+            mov dl, byte [val_key + esi]
             mov al, 97
             call _do_encrypt
             jmp _check_enc_end
@@ -451,7 +455,7 @@ _encrypt_text:
             jb _check_enc_end
             cmp bl, 90
             ja _check_enc_end
-            mov dl, byte [val_key + si]
+            mov dl, byte [val_key + esi]
             mov al, 65
             call _do_encrypt
 
@@ -463,7 +467,10 @@ _encrypt_text:
             ; теперь в bl лежит зашифрованный символ (ну или незашифрованный, 
             ; а тот же самый, если символ не был буквой)
             ; перезапишем его в буфер
-            mov byte [val_buffer + eax - ecx], bl
+            xor edi, edi
+            mov di, ax
+            sub di, cx
+            mov byte [val_buffer + edi], bl
             
 
             ; возьмем следующий символ ключа
@@ -534,12 +541,14 @@ _encrypt_text:
 ; BL - зашифрованный символ
 _do_encrypt:
 
+
     ; вычисляем вес символа текста
     sub bl, al
     
     ; складываем символ текста с символом ключа
     add bl, dl
 
+    push eax
     ; возьмем сложенное значение по модулю 26, именно столько букв в англ алфавите
     mov ax, bx
     mov bx, 26
@@ -547,6 +556,8 @@ _do_encrypt:
 
     ; вернем полученное значение в BL
     mov bl, al
+    pop eax
+    add bl, al
 
     ret
 ; ------------------------------------------------------------------------------
@@ -618,23 +629,29 @@ _do_mod:
 
 
 
-; Блок кода, отвечающий за запись шифр-текста в файл ""
-_write_encrypted_text:
 
 ; Блок кода, отвечающий за обработку ошибки при неправильной длинне ключа
 _error_read_key_len:
+    call _turn_canonical_echo_on
+    jmp _end
 
 ; Блок кода, отвечающий за обработку любых других ошибок при считывании ключа
 _error_read_key:
+    call _turn_canonical_echo_on
+    jmp _end
 
 ; Блок кода, обрабатывающий ошибку ввода не буквы в качестве символа ключа
 _error_read_key_wrong_symbol:
+    call _turn_canonical_echo_on
+    jmp _end
 
 ; Блок кода, отвечающий за обработку ошибки открытия файла (любого)
 _error_open_file:
+    jmp _end
 
 ; Блок кода, отвечающий за обработку ошибки записи в файл (в любой)
 _error_write_file:
+    jmp _end
 
 
 
@@ -807,3 +824,27 @@ _end:
     mov ebx, 0
     int 80h
 ; ------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
