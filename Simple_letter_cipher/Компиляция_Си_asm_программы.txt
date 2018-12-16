@@ -4,3 +4,6 @@
 # компиляция программы
 # nasm -f elf -o program.o program.asm
 # gcc -o main -m32  main.c program.o
+
+# запуск программы
+# ./main
