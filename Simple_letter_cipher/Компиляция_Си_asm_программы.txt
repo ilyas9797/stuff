@@ -1,0 +1,6 @@
+# установка дополнительных библиотек, чтобы gcc мог компилировать 32-ьитные программы
+# sudo apt-get install gcc-multilib g++-multilib
+
+# компиляция программы
+# nasm -f elf -o program.o program.asm
+# gcc -o main -m32  main.c program.o
