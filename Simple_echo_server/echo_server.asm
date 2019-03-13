@@ -62,16 +62,16 @@ _start:
   ; аргументы функции - int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
   ; http://man7.org/linux/man-pages/man2/bind.2.html
   push  0               		    ; sin_addr = INADDR_ANY - любой IP-адрес
-  push  word  12345             ; sin_port = 170 - номер порта 
+  push  word  0x421f             ; sin_port = 12345 - номер порта 
   push  word  2                 ; sin_family = AF_INET - IPv4 Internet protocols
   mov   [socket_address], esp 	; копируем структуру sockaddr_in в переменной socket_address
 
-  ; ; аргументы функции - int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
-  ; ; http://man7.org/linux/man-pages/man2/bind.2.html
-  ; push  16            			      ; addrlen - размер структуры sockaddr в байтах
-  ; push  [socket_address]          ; addr - указатель на структура адреса socket_address
-  ; push  socket       	            ; sockfd - указатель на дескриптор созданного сокета socket
-
+  ; аргументы функции - int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
+  ; http://man7.org/linux/man-pages/man2/bind.2.html
+  push  16            			      ; addrlen - размер структуры sockaddr в байтах
+  push  dword [socket_address]    ; addr - указатель на структура адреса socket_address
+  push  dword [socket]            ; sockfd - указатель на дескриптор созданного сокета socket
+_bind:
   ; вызов функции bind - связываем сокет с адресом
   mov  eax, 102                 ; номер системного вызова sys_socketcall 
   mov  ebx, 2                   ; номер функции bind
@@ -86,7 +86,7 @@ _start:
   ; http://man7.org/linux/man-pages/man2/listen.2.html
   push  1						        ; backlog - размер очереди
   push  dword [socket]     	; sockfd - дескриптор сокета
-
+_listen:
   ; вызов функции listen - создание очереди ожидание и перевод сокета в режим только прослушивание
   mov  eax, 102                 ; номер системного вызова sys_socketcall 
   mov  ebx, 4                   ; номер функции listen
@@ -102,7 +102,7 @@ _start:
   push  0						        ; addrlen - длинна структуры, возвращаемой параметром addr [необязательный параметр]
   push  0						        ; addr - после вызова структура будет содержать адрес и номер порта клиента [необязательный параметр]
   push  dword [socket]      ; sockfd - дескриптор сокета, находящегося в режиме прослушивания
-
+_accept:
   ; вызов функции accept - прием запроса от клиента, а конкретнее, создание нового сокета, работающего в режиме чтения-записи
   mov  eax, 102                   ; номер системного вызова sys_socketcall
   mov  ebx, 5                     ; номер функции accept
