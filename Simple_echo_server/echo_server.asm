@@ -54,7 +54,7 @@ _start:
   ;   sockaddr_in.sin_addr
   ; http://textarchive.ru/c-2490286-p14.html
   mov  word  [socket_address], 2        ; sin_family = AF_INET - IPv4 Internet protocols
-  mov  word  [socket_address + 2], 6666 ; sin_port = 6666 - номер порта 
+  mov  word  [socket_address + 2], 12345 ; sin_port = 6666 - номер порта 
   mov  dword [socket_address + 4], 0    ; sin_addr = INADDR_ANY - любой IP-адрес
   ; push  0               		    ; sin_addr = INADDR_ANY - любой IP-адрес
   ; push  word  0xaa              ; sin_port = 170 - номер порта 
