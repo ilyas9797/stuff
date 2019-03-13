@@ -20,12 +20,14 @@ section .bss
   connection:      resd 1
   socket_address:  resd 4
   read_count:      resd 1
-  reading_cycles:  resd 1
 
 
 section .text
 global _start
 _start:
+
+  ; syscalls (/usr/include/asm/unistd_32.h) - заголовочный файл, в котором содержатся номера системных вызовов (прерываний)
+	; socketcall numbers (/usr/include/linux/net.h) - заголовочный файл, в котором содержатся номера функций, вызываемых системным вызовом socketcall
 
   ; аргументы функции - int socket(int domain, int type, int protocol)
   ; http://man7.org/linux/man-pages/man2/socket.2.html
@@ -37,17 +39,14 @@ _start:
   ; вызов происходит через системное прерывание sys_socketcall с указанием номера вызываемой функции
   ; http://man7.org/linux/man-pages/man2/socketcall.2.html
   ; Номера функций: https://people.cs.clemson.edu/~westall/853/notes/udpsock.pdf
-  mov  eax, 102                 ; номер прерывания sys_socketcall
+  mov  eax, 102                 ; номер системного вызова sys_socketcall
   mov  ebx, 1                   ; номер функции socket
   mov  ecx, esp					        ; указатель на список аргументов - указывает на вершину стека
   int  0x80
   cmp  eax, 0                   ; eax содержит дескриптор сокета
   jb   sock_err					        ; если после вызова eax < 0, значит произошла ошибка при создании сокета
-  mov  dword [socket], eax    	; сохраняем дескриптор сокета по адресу [socket]
-  
-  pop
-  pop
-  pop
+  mov  socket, eax    	; сохраняем дескриптор сокета в переменной socket
+
   
   ; создание структуры sockaddr_in для функции bind и заполнение ее полей:
   ;   sockaddr_in.sin_family
@@ -55,122 +54,88 @@ _start:
   ;   sockaddr_in.sin_addr
   ; http://textarchive.ru/c-2490286-p14.html
   mov  word  [socket_address], 2        ; sin_family = AF_INET - IPv4 Internet protocols
-  mov  word  [socket_address + 2], 6666 ; sin_port = 170 - номер порта 
+  mov  word  [socket_address + 2], 6666 ; sin_port = 6666 - номер порта 
   mov  dword [socket_address + 4], 0    ; sin_addr = INADDR_ANY - любой IP-адрес
   ; push  0               		    ; sin_addr = INADDR_ANY - любой IP-адрес
   ; push  word  0xaa              ; sin_port = 170 - номер порта 
   ; push  word  2                 ; sin_family = AF_INET - IPv4 Internet protocols
-  ; mov   [socket_address], esp 	; копируем структуру sockaddr_in по адресу [socket_address]
+  ; mov   [socket_address], esp 	; копируем структуру sockaddr_in в переменной socket_address
 
   ; аргументы функции - int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
   ; http://man7.org/linux/man-pages/man2/bind.2.html
-  push  16            			      ; addrlen - размер структуры sockaddr в байтах. Небольшая хитрость - мы заполнили лишь 8 байт структуры sockaddr_in, которые поместили по адресу [socket_address], т.к. остальные 8 байт структуры sockaddr_in определяются полем sin_zero и не используются.
-  push socket_address
-  ; push  dword [socket_address]    ; addr - указатель на структура адреса socket_address
-  push  dword [socket]       	    ; sockfd - указатель на дескриптор созданного сокета socket
+  push  16            			      ; addrlen - размер структуры sockaddr в байтах. Небольшая хитрость - мы заполнили лишь 8 байт структуры sockaddr_in, которые поместили в переменной [socket_address], т.к. остальные 8 байт структуры sockaddr_in определяются полем sin_zero и не используются.
+  lea   eax, socket_address       ; получаем адрес переменной socket_address
+  push  eax                       ; addr - указатель на структура адреса socket_address
+  push  socket       	            ; sockfd - указатель на дескриптор созданного сокета socket
 
   ; вызов функции bind - связываем сокет с адресом
-  mov  eax, 102                 ; номер прерывания sys_socketcall 
+  mov  eax, 102                 ; номер системного вызова sys_socketcall 
   mov  ebx, 2                   ; номер функции bind
   mov  ecx, esp                 ; указатель на список аргументов - указывает на вершину стека
   int  0x80
   cmp  eax, 0                   ; eax = 0 в случае успешного вызова bind
   jb   bind_err                 ; если после вызова eax < 0, значит произошла ошибка при привязки адреса сокету
 
-  pop
-  pop
-  pop
 
   ; аргументы функции - int listen(int sockfd, int backlog)
   ; http://man7.org/linux/man-pages/man2/listen.2.html
   push  1						        ; backlog - размер очереди
-  push  dword [socket]			; sockfd - дескриптор сокета
+  push  socket		        	; sockfd - дескриптор сокета
 
   ; вызов функции listen - создание очереди ожидание и перевод сокета в режим только прослушивание
-  mov  eax, 102                 ; номер прерывания sys_socketcall 
+  mov  eax, 102                 ; номер системного вызова sys_socketcall 
   mov  ebx, 4                   ; номер функции listen
   mov  ecx, esp                 ; указатель на список аргументов - указывает на вершину стека
   int  0x80
   cmp  eax, 0                   ; eax = 0 в случае успешного вызова listen
   jb   listen_err               ; если после вызова eax < 0, значит произошла ошибка 
 
-  pop
-  pop
-  
-  accept_loop:
-    ; аргументы функции - int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
-    ; http://man7.org/linux/man-pages/man2/accept.2.html
-    push  0						        ; addrlen - длинна структуры, возвращаемой параметром addr [необязательный параметр]
-    push  0						        ; addr - после вызова структура будет содержать адрес и номер порта клиента [необязательный параметр]
-    push  dword [socket]			; sockfd - дескриптор сокета, находящегося в режиме прослушивания
 
-    ; вызов функции accept - прием запроса от клиента, а конкретнее, создание нового сокета, работающего в режиме чтения-записи
-    mov  eax, 102                   ; номер прерывания sys_socketcall
-    mov  ebx, 5                     ; номер функции accept
-    mov  ecx, esp                   ; указатель на список аргументов - указывает на вершину стека
-    int  0x80
-    cmp  eax, 0					
-    jb   accept_err
-    mov  dword [accept_socket], eax ; сохраняем новый дескриптор сокета созданного вызовом функции accept
+  ; аргументы функции - int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
+  ; http://man7.org/linux/man-pages/man2/accept.2.html
+  push  0						        ; addrlen - длинна структуры, возвращаемой параметром addr [необязательный параметр]
+  push  0						        ; addr - после вызова структура будет содержать адрес и номер порта клиента [необязательный параметр]
+  push  socket			        ; sockfd - дескриптор сокета, находящегося в режиме прослушивания
 
-    pop
-    pop
-    pop
-  
-  
-  mov  dword [reading_cycles], 0    ; переменная хранит число циклов считывания
-  reading:
+  ; вызов функции accept - прием запроса от клиента, а конкретнее, создание нового сокета, работающего в режиме чтения-записи
+  mov  eax, 102                   ; номер системного вызова sys_socketcall
+  mov  ebx, 5                     ; номер функции accept
+  mov  ecx, esp                   ; указатель на список аргументов - указывает на вершину стека
+  int  0x80
+  cmp  eax, 0					
+  jb   accept_err
+  mov  accept_socket, eax ; сохраняем новый дескриптор сокета созданного вызовом функции accept
+
+
+  reading_writing:
     ; считывание переданого сообщения системным вызовом read
     ; ssize_t read(int fd, void *buf, size_t count)
     mov  eax, 3                   ; номер системного вызова функции read
-    mov  ebx, [accept_socket]     ; параметр fd - дескриптор сокета принятого соединения
-    mov  ecx, buffer              ; параметр buf - буфер для сохранения считано сообщения
+    mov  ebx, accept_socket       ; параметр fd - дескриптор сокета принятого соединения
+    lea  ecx, buffer              ; параметр buf - буфер для сохранения считано сообщения
     mov  edx, buffer_len          ; параметр count - максимальное число считанных символов
     int  0x80
     
-    ; условие выхода
-    cmp  eax, 0                  ; в eax будет записано количество считанных символов
-    jnz  continue_cycle          ; если было передано пусто сообщение, то завершаем программу
-    mov  eax, [reading_cycles]   ; если это первый цикл считывания
-    cmp  eax, 0
-    jnz  continue_cycle    
+    ; условие прекращения работы сервера - если было передано пустое сообщение
+    test eax, eax     ; в eax будет записано количество считанных символов
+    jz   exit         ; если длинна полученного сообщения 0, то завершаем программу
 
-    close_sock:
-      mov  eax, 6           ; номер системного вызова функции close
-      mov  ebx, [socket]
-      int  0x80
+    mov  read_count, eax   ; сохраняем размер считанного сообщения
 
-    jmp  exit
-
-    continue_cycle:
-
-    mov  dword [read_count], eax   ; сохраняем размер считанного сообщения
-
-    ; запись считанного сообщения обратно клиенту вызовом write
+    ; отправление считанного сообщения обратно клиенту вызовом write
     ; ssize_t write(int fd, const void *buf, size_t count)
     mov  eax, 4          	     ; номер системного вызова функции write
-    mov  ebx, [accept_socket]
-    mov  ecx, buffer
-    mov  edx, [read_count]
+    mov  ebx, accept_socket
+    lea  ecx, buffer
+    mov  edx, read_count
     int  0x80
 
-    mov  eax, [reading_cycles]
-    add  eax, 1
-    mov  [reading_cycles], eax
-
-    ; loop child						; снова переход на чтение
-    loop reading            ; снова переход на чтение, если ecx не равен 0
-
-  mov  eax, 6                 	; номер системного вызова функции close 
-  mov  ebx, [accept_socket]     ; закрываем сокет принятого соединения
-  int  0x80
-
-  jmp  accept_loop
+  loop reading_writing            ; снова переход на чтение
 
 
 exit:
   mov  eax, 6                 ; sys_close
-  mov  ebx, [accept_socket]
+  mov  ebx, accept_socket
   int  0x80
   jmp _exit
 
