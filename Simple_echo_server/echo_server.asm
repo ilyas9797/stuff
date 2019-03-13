@@ -64,7 +64,7 @@ _start:
   ; аргументы функции - int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
   ; http://man7.org/linux/man-pages/man2/bind.2.html
   push  16            			      ; addrlen - размер структуры sockaddr в байтах. Небольшая хитрость - мы заполнили лишь 8 байт структуры sockaddr_in, которые поместили в переменной [socket_address], т.к. остальные 8 байт структуры sockaddr_in определяются полем sin_zero и не используются.
-  lea   eax, socket_address       ; получаем адрес переменной socket_address
+  lea   eax, dword [socket_address]       ; получаем адрес переменной socket_address
   push  eax                       ; addr - указатель на структура адреса socket_address
   push  socket       	            ; sockfd - указатель на дескриптор созданного сокета socket
 
@@ -112,7 +112,7 @@ _start:
     ; ssize_t read(int fd, void *buf, size_t count)
     mov  eax, 3                   ; номер системного вызова функции read
     mov  ebx, accept_socket       ; параметр fd - дескриптор сокета принятого соединения
-    lea  ecx, buffer              ; параметр buf - буфер для сохранения считано сообщения
+    lea  ecx, dword [buffer]              ; параметр buf - буфер для сохранения считано сообщения
     mov  edx, buffer_len          ; параметр count - максимальное число считанных символов
     int  0x80
     
@@ -126,7 +126,7 @@ _start:
     ; ssize_t write(int fd, const void *buf, size_t count)
     mov  eax, 4          	     ; номер системного вызова функции write
     mov  ebx, accept_socket
-    lea  ecx, buffer
+    lea  ecx, dword [buffer]
     mov  edx, read_count
     int  0x80
 
