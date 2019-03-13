@@ -122,6 +122,14 @@ _start:
 
     mov  dword [read_count], eax   ; сохраняем размер считанного сообщения
 
+    ; вывод считанного сообщения на экран
+    ; ssize_t write(int fd, const void *buf, size_t count)
+    mov  eax, 4          	     ; номер системного вызова функции write
+    mov  ebx, 1
+    lea  ecx, [buffer]
+    mov  edx, read_count
+    int  0x80
+
     ; отправление считанного сообщения обратно клиенту вызовом write
     ; ssize_t write(int fd, const void *buf, size_t count)
     mov  eax, 4          	     ; номер системного вызова функции write
