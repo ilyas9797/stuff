@@ -45,7 +45,7 @@ _start:
   int  0x80
   cmp  eax, 0                   ; eax содержит дескриптор сокета
   jb   sock_err					        ; если после вызова eax < 0, значит произошла ошибка при создании сокета
-  mov  socket, eax    	; сохраняем дескриптор сокета в переменной socket
+  mov  dword [socket], eax    	; сохраняем дескриптор сокета в переменной socket
 
   
   ; создание структуры sockaddr_in для функции bind и заполнение ее полей:
@@ -104,7 +104,7 @@ _start:
   int  0x80
   cmp  eax, 0					
   jb   accept_err
-  mov  accept_socket, eax ; сохраняем новый дескриптор сокета созданного вызовом функции accept
+  mov  dword [accept_socket], eax ; сохраняем новый дескриптор сокета созданного вызовом функции accept
 
 
   reading_writing:
@@ -120,7 +120,7 @@ _start:
     test eax, eax     ; в eax будет записано количество считанных символов
     jz   exit         ; если длинна полученного сообщения 0, то завершаем программу
 
-    mov  read_count, eax   ; сохраняем размер считанного сообщения
+    mov  dword [read_count], eax   ; сохраняем размер считанного сообщения
 
     ; отправление считанного сообщения обратно клиенту вызовом write
     ; ssize_t write(int fd, const void *buf, size_t count)
