@@ -1,11 +1,11 @@
-#include <stdio.h>  // 
+#include <stdio.h>  // fseek
 #include <stdlib.h> // malloc, realloc, atoi
 #include <string.h> // strlen
 
 
 int pivot(int *p, int s, int e)
 {
-    return p[s];
+    return p[ s + ( (e - s) >> 1 ) ];
 }
 
 
@@ -65,17 +65,15 @@ int append_to_array(struct array_len *array, int x)
         array->m = malloc( DEFAULT_CAPACITY * sizeof( int ) );        
         if ( array->m == NULL ) return -1;
         
-        memset( array->m, 0, DEFAULT_CAPACITY * sizeof( int ) );
         array->cap = DEFAULT_CAPACITY;
         array->len = 0;
     }
 
     if ( array->len == array->cap )
     {
-        int *tmp_m = realloc( array->m, array->cap + DEFAULT_CAPACITY );
+        int *tmp_m = realloc( array->m, ( array->cap + DEFAULT_CAPACITY ) * sizeof( int ) );
         if ( tmp_m == NULL ) return -1;
 
-        free( array->m );
         array->m = tmp_m;
         array->cap += DEFAULT_CAPACITY;
     }
@@ -87,93 +85,87 @@ int append_to_array(struct array_len *array, int x)
 }
 
 
-int update_array(struct array_len *array, char *buf)
-{
-    if ( array == NULL ) return -1;
-
-    if ( buf == NULL ) return -1;
-    
-    int buf_len = strlen( buf );
-
-    if ( buf_len == 0 ) return -1;
-
-    int i, j = 0;
-    char s;
-    char *s_num;
-    int num, s_num_len;
-
-    if ( array->m == NULL )
-    {
-        array->m = malloc( DEFAULT_CAPACITY * sizeof( int ) );        
-        if ( array->m == NULL ) return -1;
-        
-        memset(array->m, 0, DEFAULT_CAPACITY * sizeof( int ) );
-        array->cap = DEFAULT_CAPACITY;
-        array->len = 0;
-    }
-
-    while ( j <= buf_len )
-    {
-        if ( buf[j] == ' ' && i != j )
-        {
-            s_num_len = j - i;
-            s_num = malloc( s_num_len + 1 );
-            memcpy( s_num, buf + i, s_num_len );
-            s_num[s_num_len] = '\0';
-
-            num = atoi(s_num);
-
-            if ( append_to_array( array, num ) != 0 )
-            {
-                free( s_num );
-                return -1;
-            }
-
-            free( s_num );
-
-            j++;
-            i = j;
-        }
-
-        j++;
-    }
-
-    //
-
-    return 0;
-}
-
-
 struct array_len *read_file(char *filename)
 {    
-    char *mode, *rbuf;
-    int count;
-    struct array_len *array;
-    const int MAX_SYMBOLS_READ = 10000;
+    char *mode, *num_buf = NULL;
+    int num, c, pos = 0;
+    struct array_len *array = NULL;
+    const int MAX_NUM_LEN = 21;
 
     mode = "r";
     FILE *file = fopen( filename, mode );
     if ( file == NULL ) return NULL;
 
-    rbuf = malloc( ( MAX_SYMBOLS_READ + 1 ) * sizeof( char ) );
-    if ( rbuf == NULL )
-    {
-        fclose( file );
-        return NULL;
-    }
-
     array = malloc( sizeof( struct array_len ) );
     memset(array, 0, sizeof( struct array_len ) );
 
-    while ( fgets( rbuf, MAX_SYMBOLS_READ + 1, file ) )
+    num_buf = malloc( MAX_NUM_LEN );
+
+    while ( 1 )
     {
-        
+        c = fgetc( file );
+
+        if (c == ' ' || c == EOF)
+        {
+            if (pos != 0)
+            {
+                num_buf[ pos ] = '\0';
+                num = atoi(num_buf);
+
+                if ( append_to_array( array, num ) != 0 )
+                {
+                    fclose( file );
+                    free( num_buf );
+                    return NULL;
+                }
+
+                pos = 0;
+            }
+
+            if (c == EOF) break;
+        }
+        else
+        {
+            if ( pos >= MAX_NUM_LEN )
+            {
+                fclose( file );
+                free( num_buf );
+                return NULL;
+            }
+
+            num_buf[ pos ] = (char) c;
+            pos++;
+        }
     }
 
+    fclose( file );
+    free( num_buf );
+    return array;
+}
+
+
+int write_to_file(struct array_len *array, char *filename)
+{
+    if ( array == NULL ) return -1;
+
+    if ( filename == NULL ) return -1;
+
+    if ( array->len < 1 ) return -1;
+
+    int i;
+    char *mode = "w";
+
+    FILE *file = fopen( filename, mode );
+    if ( file == NULL ) return -1;
+
+    for ( i = 0; i < array->len - 1; i++ )
+    {
+        fprintf( file, "%d ", array->m[ i ] );
+    }
+    fprintf( file, "%d", array->m[ array->len - 1 ] );
 
     fclose( file );
-    free(rbuf);
-    return array;
+    return 0;
 }
 
 
@@ -181,9 +173,17 @@ int main(int argc, char *argv[])
 {    
     if ( argc != 2 ) return 1;
 
-    struct array_len *m = read_file( argv[1] );
+    int i;
 
+    struct array_len *m = NULL;
+    
+    if ( ( m = read_file( argv[1] ) ) == NULL ) return 1;
 
+    quicksort( m->m, 0, m->len - 1 );
 
+    write_to_file(m, argv[1]);
+
+    free( m->m );
+    free( m );
     return 0;
 }
