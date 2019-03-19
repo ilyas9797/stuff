@@ -54,11 +54,8 @@ _connect:
   ;   sockaddr_in.sin_port
   ;   sockaddr_in.sin_addr
   ; http://textarchive.ru/c-2490286-p14.html
-  ; mov  word [socket_address], 2         ; sin_family = AF_INET - IPv4 Internet protocols
-  ; mov  word [socket_address + 2], 6666  ; sin_port = 170 - номер порта 
-  ; mov  eax, [in_addr]
-  ; mov  [socket_address + 4], eax        ; sin_addr = INADDR_ANY - любой IP-адрес
-  push  0       		    ; sin_addr = INADDR_ANY - любой IP-адрес
+  push  0       		            ; sin_addr = INADDR_ANY - любой IP-адрес - 
+  ; push  dword 0x01cca8c0       ; sin_addr = 192.168.204.1 - раскомментировать эту строчку и закомментировать строчку выше, чтобы подключиться к компу преподавателя. И наоборот, чтобы работало со своим сервером.
   push  word  0x0a0a            ; sin_port = 170 - номер порта 
   push  word  2                 ; sin_family = AF_INET - IPv4 Internet protocols
   mov   [socket_address], esp 	; копируем структуру sockaddr_in по адресу [socket_address]
